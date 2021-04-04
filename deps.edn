@@ -1,0 +1,2 @@
+{:deps {org.clojure/clojure {:mvn/version "1.10.3"}
+        io.fabric8/kubernetes-client {:mvn/version "5.2.1"}}}
