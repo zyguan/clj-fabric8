@@ -1,4 +1,6 @@
-(ns clj-fabric8.util)
+(ns clj-fabric8.util
+  (:import (java.io ByteArrayOutputStream)
+           (io.fabric8.kubernetes.client.dsl ExecListener)))
 
 (defn pod-log
   ([client namespace name]
@@ -10,6 +12,40 @@
        (.inNamespace namespace)
        (.inContainer container)
        (.getLogReader))))
+
+(defn pod-file
+  ([client namespace name path]
+   (pod-file client namespace name "" path))
+  ([client namespace name container path]
+   (-> client
+       (.pods)
+       (.withName name)
+       (.inNamespace namespace)
+       (.inContainer container)
+       (.file path)
+       (.read))))
+
+(defn pod-file-exists?
+  ([client namespace name path]
+   (pod-file-exists? client namespace name "" path))
+  ([client namespace name container path]
+   (let [out (ByteArrayOutputStream.)
+         ok? (promise)]
+     (try
+       (with-open [w (-> client
+                         (.pods)
+                         (.withName name)
+                         (.inNamespace namespace)
+                         (.inContainer container)
+                         (.writingOutput out)
+                         (.usingListener (reify
+                                           ExecListener
+                                           (onOpen [this _])
+                                           (onFailure [this _ _] (deliver ok? false))
+                                           (onClose [this code _] (deliver ok? (= 1000 code)))))
+                         (.exec (into-array ["sh" "-c" (str "test -f " path "; echo -n $?")])))]
+         (and @ok? (= (str out) "0")))
+       (catch Exception _ nil)))))
 
 (defprotocol Clojurizable
   (clojurize [o]))
